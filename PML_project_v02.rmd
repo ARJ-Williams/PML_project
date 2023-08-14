@@ -1,0 +1,123 @@
+---
+title: "PML_Project_v01"
+author: "Andy Williams"
+date: "12/08/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Practical Machine Learning
+
+This rmd file is a submission for the Coursera Course "Practical Machine
+Learning"
+
+### Step 1
+
+Load in the required libraries and data
+
+** Datasource: Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. 
+Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th
+International Conference in Cooperation with SIGCHI (Augmented Human '13) .
+Stuttgart, Germany: ACM SIGCHI, 2013
+
+Read more: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har
+
+```{r, message=FALSE,warning=FALSE}
+set.seed(1234)
+
+library(caret)
+library(ggplot2)
+library(rattle)
+library(dplyr)
+
+#setwd("PML_Project")
+
+df <- read.csv("pml-training.csv")
+df_test <- read.csv("pml-testing.csv")
+
+```
+
+### Assess spread of data for each user vs each class
+
+For each user 10 repetitions of the Unilateral Dumbbell Biceps Curl were done in
+five different fashions: exactly according to the specification (Class A), 
+throwing the elbows to the front (Class B), lifting the dumbbell only halfway 
+(Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to
+the front (Class E).
+
+```{r}
+table(df$user_name,df$classe)
+```
+The data shows that each participant completed all intended exercises. There is 
+a potential bias for class A which is the largest exercise assessed.
+
+### Clean data
+
+Remove any columns with 100% NAs or non numerical values
+
+```{r}
+
+print(paste("Columns before cleaning = ",ncol(df)))
+
+df_clean <- df[ , colSums(is.na(df)) == 0]
+
+print(paste("Columns after cleaning for NA = ",ncol(df_clean)))
+
+df_labels <- df_clean$classe
+
+df_clean <- select_if(df_clean, is.numeric)
+
+df_clean <- cbind(df_clean,df_labels)
+df_clean$classe <- df_clean$df_labels
+df_clean <- select(df_clean,-c("df_labels","X"))
+
+print(paste("Columns after cleaning for non numeric columns = ",ncol(df_clean)))
+
+```
+
+## Feature Plot
+
+Assess data as a feature plot for example of the belt wearable 
+
+```{r}
+featurePlot(y=as.factor(df_clean$classe), x=df_clean[,c(2:14)] ,data=df_clean, plot = "pairs")
+```
+
+### Cross Validate and train
+
+As the data contains sequenced data similar to time series it was decided to use
+repeated KFolds to chunk up the data
+
+LDA and SVM models were assessed.
+
+```{r}
+set.seed(54321)
+train_control <- trainControl(method = "repeatedcv", number = 10, repeats = 5)
+modelLDA <- train(classe ~ ., data = df_clean, method = "lda", trControl = train_control)
+modelSVM <- train(classe ~ ., data = df_clean, method = "svmLinear", trControl = train_control)
+```
+
+### Assess accuracy of each model
+
+```{r}
+
+print(paste("Accuracy of LDA method:",modelLDA$results$Accuracy))
+print(paste("Accuracy of SVM method:",modelSVM$results$Accuracy))
+
+```
+### Selection of method
+
+The SVM model was selected to predict the test results
+
+### Predicted class's
+
+```{r}
+
+predSVM <- predict(modelSVM, df_test[,-160])
+print(predSVM)
+
+```
+
